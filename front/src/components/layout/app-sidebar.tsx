@@ -1,0 +1,209 @@
+'use client';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarRail
+} from '@/components/ui/sidebar';
+import { UserAvatarProfile } from '@/components/user-avatar-profile';
+import { navGroups } from '@/config/nav-config';
+import { useMediaQuery } from '@/hooks/use-media-query';
+import { useFilteredNavGroups } from '@/hooks/use-nav';
+import { signOut, useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import * as React from 'react';
+import { Icons } from '@/components/icons';
+
+export default function AppSidebar() {
+  const pathname = usePathname();
+  const { isOpen } = useMediaQuery();
+  const { data: session } = useSession();
+  const user = session?.user;
+  const router = useRouter();
+  const filteredGroups = useFilteredNavGroups(navGroups);
+
+  const [openItem, setOpenItem] = React.useState<string | null>(() => {
+    // Uses the static navGroups config, not the permission-filtered
+    // filteredGroups: permissions come from useSession(), which resolves
+    // async (no server-hydrated session), so on first paint filteredGroups'
+    // children are still empty and would always miss the active item here.
+    const activeItem = navGroups
+      .flatMap((group) => group.items)
+      .find((item) => item.isActive || item.items?.some((subItem) => pathname === subItem.url));
+    return activeItem?.title ?? null;
+  });
+
+  React.useEffect(() => {
+    // Side effects based on sidebar state changes
+  }, [isOpen]);
+
+  return (
+    <Sidebar collapsible='icon'>
+      {user?.company && (
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <div className='flex items-center gap-2 rounded-md p-2'>
+                <div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground'>
+                  <Icons.company className='size-4' />
+                </div>
+                <div className='grid flex-1 text-left text-sm leading-tight'>
+                  <span className='truncate font-semibold'>{user.company.name}</span>
+                  {user.company.short_name && (
+                    <span className='truncate text-xs'>{user.company.short_name}</span>
+                  )}
+                </div>
+              </div>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+      )}
+      <SidebarContent className='overflow-x-hidden'>
+        {filteredGroups.map((group) => (
+          <SidebarGroup key={group.label || 'ungrouped'} className='py-0'>
+            {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+            <SidebarMenu>
+              {group.items.map((item) => {
+                const Icon = item.icon ? Icons[item.icon] : Icons.logo;
+                const hasActiveChild = item.items?.some((subItem) => pathname === subItem.url);
+                return item?.items && item?.items?.length > 0 ? (
+                  <Collapsible
+                    key={item.title}
+                    open={openItem === item.title}
+                    onOpenChange={(isOpen) => setOpenItem(isOpen ? item.title : null)}
+                    render={<SidebarMenuItem />}
+                  >
+                    <CollapsibleTrigger
+                      render={
+                        <SidebarMenuButton
+                          tooltip={item.title}
+                          isActive={pathname === item.url || hasActiveChild}
+                          className='group/collapsible'
+                        />
+                      }
+                    >
+                      {item.icon && <Icon />}
+                      <span>{item.title}</span>
+                      <Icons.chevronRight className='ml-auto transition-transform duration-200 group-data-panel-open/collapsible:rotate-90' />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {item.items?.map((subItem) => (
+                          <SidebarMenuSubItem key={subItem.title}>
+                            <SidebarMenuSubButton
+                              render={<Link href={subItem.url} aria-label={subItem.title} />}
+                              isActive={pathname === subItem.url}
+                            >
+                              <span>{subItem.title}</span>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+                ) : (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      render={<Link href={item.url} aria-label={item.title} />}
+                      tooltip={item.title}
+                      isActive={pathname === item.url}
+                    >
+                      <Icon />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton
+                    size='lg'
+                    className='data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground'
+                  />
+                }
+              >
+                {user ? (
+                  <UserAvatarProfile className='h-8 w-8 rounded-lg' showInfo user={user} />
+                ) : (
+                  <span className='truncate'>Account</span>
+                )}
+                <Icons.chevronsDown className='ml-auto size-4' />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className='w-(--anchor-width) min-w-56 rounded-lg'
+                side='bottom'
+                align='end'
+                sideOffset={4}
+              >
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className='p-0 font-normal'>
+                    <div className='px-1 py-1.5'>
+                      {user ? (
+                        <UserAvatarProfile className='h-8 w-8 rounded-lg' showInfo user={user} />
+                      ) : (
+                        <div className='text-muted-foreground text-sm'>
+                          Sign in to manage your account
+                        </div>
+                      )}
+                    </div>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => router.push('/dashboard/settings/profile')}>
+                    <Icons.account className='mr-2 h-4 w-4' />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/dashboard/notifications')}>
+                    <Icons.notification className='mr-2 h-4 w-4' />
+                    Notifications
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                {user && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/auth/sign-in' })}>
+                        <Icons.logout aria-hidden className='mr-2 h-4 w-4' />
+                        Sign out
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
